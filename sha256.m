@@ -73,18 +73,18 @@ end
 %Make 16 32-bit words to 64 32-bit words
 for i= 16:64
     % (w[i-14] rightrotate  7) xor  (w[i-14] rightrotate  18) xor  (w[i-14] rightshift  3)
-    s0_7 = circshift(block(i - 14),7);
-    s0_18 = circshift(block(i - 14),18);
-    s0_3 = circshift(block(i - 14),3);
+    s0_7 = circshift(block(i - 14,:),7);
+    s0_18 = circshift(block(i - 14,:),18);
+    s0_3 = rightshift(block(i - 14,:),3);
     s0 = xor(xor(s0_7,s0_18),s0_3);
     
     %(w[i-2] rightrotate  17) xor  (w[i-2] rightrotate  19) xor  (w[i-2] rightshift  10)
-    s1_17 = circshift(block(i - 1),17);
-    s1_19 = circshift(block(i - 1),19);
-    s1_10 = circshift(block(i - 1),10);
+    s1_17 = circshift(block(i - 1,:),17);
+    s1_19 = circshift(block(i - 1,:),19);
+    s1_10 = rightshift(block(i - 1,:),10);
     s1 = xor(xor(s1_17,s1_19),s1_10);
     
-    block(i) = block(i - 15) + s0 + block(i - 6) + s1;
+    block(i, :) = block(i - 15, :) + s0 + block(i - 6, :) + s1;
 end
 hash = mod(size(data,2),512);
 end
@@ -101,4 +101,11 @@ function s1 = sum1(data)
     s1_11 = circshift(data,11);
     s1_25 = circshift(data,25);
     s1 = xor(xor(s1_6,s1_11),s1_25);
+end
+
+function ch = ch(e,f,g)
+end
+
+function shifted = rightshift(data,bits)
+shifted = [zeros(1,bits) data(1,1:size(data,2)-bits)];
 end
