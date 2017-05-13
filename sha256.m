@@ -1,6 +1,6 @@
 function hash = sha256()
 
-%Read file
+%Read file - non-translatable to vhdl
 fid=fopen('sha256.m','r');
 [data,count]=fread(fid);
 fclose(fid);
@@ -10,12 +10,11 @@ data = reshape(data,1,size(data,1)*size(data,2));
 %The initial hash value H is the following sequence of 32-bit words (which are
 %obtained by taking the fractional parts of the square roots of the first eight primes):
 H = [
-    hex2dec('6a09e667');hex2dec('bb67ae85');hex2dec('3c6ef372');
-    hex2dec('a54ff53a');hex2dec('510e527f');hex2dec('9b05688c');
-    hex2dec('1f83d9ab');hex2dec('5be0cd19')
+    '6a09e667'; 'bb67ae85'; '3c6ef372'; 'a54ff53a';
+    '510e527f'; '9b05688c'; '1f83d9ab'; '5be0cd19'
     ];
 
-H = de2bi(H);
+H = de2bi(hex2dec(H));
 
 %A sequence of constant rounds K
 K = [
@@ -78,7 +77,7 @@ for i= 16:64
     s0_3 = rightshift(block(i - 14,:),3);
     s0 = xor(xor(s0_7,s0_18),s0_3);
     
-    %(w[i-2] rightrotate  17) xor  (w[i-2] rightrotate  19) xor  (w[i-2] rightshift  10)
+    %(w[i-1] rightrotate  17) xor  (w[i-1] rightrotate  19) xor  (w[i-1] rightshift  10)
     s1_17 = circshift(block(i - 1,:),17);
     s1_19 = circshift(block(i - 1,:),19);
     s1_10 = rightshift(block(i - 1,:),10);
@@ -86,9 +85,24 @@ for i= 16:64
     
     block(i, :) = block(i - 15, :) + s0 + block(i - 6, :) + s1;
 end
+
+%Initialize registers
+regs = zeros(8,1);
+regs(1) = H(1);
+regs(2) = H(2);
+regs(3) = H(3);
+regs(4) = H(4);
+regs(5) = H(5);
+regs(6) = H(6);
+regs(7) = H(7);
+regs(8) = H(8);
+
 hash = mod(size(data,2),512);
 end
 
+%Logical functions are needed in SHA-256
+
+%(a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22)
 function s0 = sum0(data)
     s0_2 = circshift(data,2);
     s0_13 = circshift(data,13);
@@ -96,6 +110,7 @@ function s0 = sum0(data)
     s0 = xor(xor(s0_2,s0_13),s0_22);
 end
 
+%(e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25)
 function s1 = sum1(data)
     s1_6 = circshift(data,6);
     s1_11 = circshift(data,11);
@@ -103,9 +118,41 @@ function s1 = sum1(data)
     s1 = xor(xor(s1_6,s1_11),s1_25);
 end
 
+%(e and f) xor ((not e) and g)
 function ch = ch(e,f,g)
+    e_and_f = and(e,f);
+    not_e = not(e);
+    not_e_and_g = and(not_e,g);
+    ch = xor(e_and_f,not_e_and_g);
 end
 
+%(e and f) xor ((not e) and g)
+function ma = ma(a,b,c)
+    a_and_b = and(a,b);
+    a_and_c = and(a,c);
+    b_and_c = and(b,c);
+    ma = xor(a_and_b,xor(a_and_c,b_and_c));
+end
+
+%h + s1 + ch + k[i] + w[i]
+function t1 = t1(h,s1,ch,ki,wi)
+   h_s1 = addmod232(h,s1);
+   h_s1_ch = addmod232(h_s1,ch);
+   h_s1_ch_ki = addmod232(h_s1_ch,ki);
+   t1 = addmod232(h_s1_ch_ki,wi);
+end
+
+%s0 + maj
+function t2 = t2(s0,ma)
+t2 = addmod232(s0,ma);
+end
+
+%Addition in 2^32 finite field
+function addmod232 = addmod232(a,b)
+addmod232 = de2bi(mod(bi2de(a)+bi2de(b),4294967296));
+end
+
+%Right shifting
 function shifted = rightshift(data,bits)
 shifted = [zeros(1,bits) data(1,1:size(data,2)-bits)];
 end
