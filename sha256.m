@@ -1,9 +1,9 @@
-function hash = sha256()
+function hash = sha256(data,count)
 
 %Read file - non-translatable to vhdl
-fid=fopen('sha256.m','r');
-[data,count]=fread(fid);
-fclose(fid);
+%fid=fopen('sha256.m','r');
+%[data,count]=fread(fid);
+%fclose(fid);
 %data = uint8('abc').'
 %count = 3
 data = de2bi(data,8,'left-msb');
@@ -45,9 +45,14 @@ K = de2bi(hex2dec(K),'left-msb');
 %Append the bit "1" to the end of the message, and then k zero bits, 
 %where k is the smallest non-negative solution to the equation l+1+k = 448 mod 512
 % l is message length
-remainder = mod(size(data,2),512);
-zerosnumber = 448 - remainder - 1;
 data = [data 1];
+remainder = mod(size(data,2),512);
+zerosnumber = 448 - remainder;
+
+%corner case
+if zerosnumber == -1
+    zerosnumber = 511;    
+end
 data = [data zeros(1,zerosnumber)];
 
 %To this append the 64-bit block which is equal to the number l written in binary
@@ -130,6 +135,7 @@ H(8,:) = addmod232(H(8,:),regs(8,:));
 block512Start = block512Start + 512;
 end
 hash = dec2hex(bin2dec(num2str(reshape(H.',4,[])','%1d')))';
+%hash = H;
 end
 
 %Logical functions are needed in SHA-256
