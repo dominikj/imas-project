@@ -4,8 +4,10 @@ function hash = sha256()
 fid=fopen('sha256.m','r');
 [data,count]=fread(fid);
 fclose(fid);
-data = de2bi(data,8);
-data = reshape(data,1,size(data,1)*size(data,2));
+%data = uint8('abc').'
+%count = 3
+data = de2bi(data,8,'left-msb');
+data = reshape(data.',1,size(data,1)*size(data,2));
 
 %The initial hash value H is the following sequence of 32-bit words (which are
 %obtained by taking the fractional parts of the square roots of the first eight primes):
@@ -49,16 +51,14 @@ data = [data 1];
 data = [data zeros(1,zerosnumber)];
 
 %To this append the 64-bit block which is equal to the number l written in binary
-length64 = typecast(count*8,'uint8');
-length64 = de2bi(length64,8,'left-msb');
-length64 = reshape(length64,1,size(length64,1)*size(length64,2));
+length64 = de2bi(count*8,64,'left-msb');
 data = [data length64];
 
 %Parse the message into N 512-bit blocks
-%Need make loop
 block512Start = 1;
-block512End = 512;
 
+while block512Start < size(data,2)
+    
 %Parse the 512-bit block into 16 32-bit blocks
 %We use the big-endian convention throughout, so within each
 %32-bit word, the left-most bit is stored in the most significant bit position.
@@ -127,6 +127,8 @@ H(6,:) = addmod232(H(6,:),regs(6,:));
 H(7,:) = addmod232(H(7,:),regs(7,:));
 H(8,:) = addmod232(H(8,:),regs(8,:));
 
+block512Start = block512Start + 512;
+end
 hash = dec2hex(bin2dec(num2str(reshape(H.',4,[])','%1d')))';
 end
 
