@@ -14,7 +14,7 @@ H = [
     '510e527f'; '9b05688c'; '1f83d9ab'; '5be0cd19'
     ];
 
-H = de2bi(hex2dec(H));
+H = de2bi(hex2dec(H),'left-msb');
 
 %A sequence of constant rounds K
 K = [
@@ -36,7 +36,7 @@ K = [
         '90befffa'; 'a4506ceb'; 'bef9a3f7'; 'c67178f2'
     ];
 
-K = de2bi(hex2dec(K));
+K = de2bi(hex2dec(K),'left-msb');
 
 %Prepairing step
 
@@ -49,7 +49,7 @@ data = [data 1];
 data = [data zeros(1,zerosnumber)];
 
 %To this append the 64-bit block which is equal to the number l written in binary
-length64 = typecast(count,'uint8');
+length64 = typecast(count*8,'uint8');
 length64 = de2bi(length64,8,'left-msb');
 length64 = reshape(length64,1,size(length64,1)*size(length64,2));
 data = [data length64];
@@ -70,34 +70,64 @@ end
 %Expansion data step
 
 %Make 16 32-bit words to 64 32-bit words
-for i= 16:64
+for i= 17:64
     % (w[i-14] rightrotate  7) xor  (w[i-14] rightrotate  18) xor  (w[i-14] rightshift  3)
-    s0_7 = circshift(block(i - 14,:),7);
-    s0_18 = circshift(block(i - 14,:),18);
-    s0_3 = rightshift(block(i - 14,:),3);
+    s0_7 = circshift(block(i - 15,:),7);
+    s0_18 = circshift(block(i - 15,:),18);
+    s0_3 = rightshift(block(i - 15,:),3);
     s0 = xor(xor(s0_7,s0_18),s0_3);
     
     %(w[i-1] rightrotate  17) xor  (w[i-1] rightrotate  19) xor  (w[i-1] rightshift  10)
-    s1_17 = circshift(block(i - 1,:),17);
-    s1_19 = circshift(block(i - 1,:),19);
-    s1_10 = rightshift(block(i - 1,:),10);
+    s1_17 = circshift(block(i - 2,:),17);
+    s1_19 = circshift(block(i - 2,:),19);
+    s1_10 = rightshift(block(i - 2,:),10);
     s1 = xor(xor(s1_17,s1_19),s1_10);
-    
-    block(i, :) = block(i - 15, :) + s0 + block(i - 6, :) + s1;
+
+    b1_s0 = addmod232(block(i - 16, :), s0);
+    b2_s1 = addmod232(block(i - 7, :), s1);
+    block(i, :) =  addmod232(b1_s0,b2_s1);
 end
 
 %Initialize registers
-regs = zeros(8,1);
-regs(1) = H(1);
-regs(2) = H(2);
-regs(3) = H(3);
-regs(4) = H(4);
-regs(5) = H(5);
-regs(6) = H(6);
-regs(7) = H(7);
-regs(8) = H(8);
+regs = zeros(8,32);
+regs(1,:) = H(1,:); %a
+regs(2,:) = H(2,:); %b
+regs(3,:) = H(3,:); %c
+regs(4,:) = H(4,:); %d
+regs(5,:) = H(5,:); %e
+regs(6,:) = H(6,:); %f
+regs(7,:) = H(7,:); %g
+regs(8,:) = H(8,:); %h
 
-hash = mod(size(data,2),512);
+%Essential step
+
+for i = 1:64
+    s1_ = sum1(regs(5,:));
+    ch_ = ch(regs(5,:),regs(6,:),regs(7,:));
+    t1_ = t1(regs(8,:),s1_,ch_,K(i,:),block(i,:));
+    s0_ = sum0(regs(1,:));
+    ma_ = ma(regs(1,:),regs(2,:),regs(3,:));
+    t2_ = t2(s0_,ma_);
+    
+    regs(8,:) = regs(7,:);
+    regs(7,:)=  regs(6,:);
+    regs(6,:) = regs(5,:);
+    regs(5,:) = addmod232(regs(4,:),t1_);
+    regs(4,:) = regs(3,:);
+    regs(3,:) = regs(2,:);
+    regs(2,:) = regs(1,:);
+    regs(1,:) = addmod232(t1_,t2_);
+end
+H(1,:) = addmod232(H(1,:),regs(1,:));
+H(2,:) = addmod232(H(2,:),regs(2,:));
+H(3,:) = addmod232(H(3,:),regs(3,:));
+H(4,:) = addmod232(H(4,:),regs(4,:));
+H(5,:) = addmod232(H(5,:),regs(5,:));
+H(6,:) = addmod232(H(6,:),regs(6,:));
+H(7,:) = addmod232(H(7,:),regs(7,:));
+H(8,:) = addmod232(H(8,:),regs(8,:));
+
+hash = dec2hex(bin2dec(num2str(reshape(H.',4,[])','%1d')))';
 end
 
 %Logical functions are needed in SHA-256
@@ -149,7 +179,7 @@ end
 
 %Addition in 2^32 finite field
 function addmod232 = addmod232(a,b)
-addmod232 = de2bi(mod(bi2de(a)+bi2de(b),4294967296));
+addmod232 = de2bi(mod(bi2de(a,'left-msb')+bi2de(b,'left-msb'),4294967296),32,'left-msb');
 end
 
 %Right shifting
